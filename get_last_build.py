@@ -11,6 +11,8 @@ BUILD_DIRECTORY_URL = "http://builds.by.viberlab.com/builds/Viber/ViberPC/DevBui
 BUILD_VERSION_SPLITTER = "."
 BUILD_VERSION_SECTIONS = 4
 BUILD_DEFAULT_INSTALLER_NAME = "DefaultViberSetup"
+BUILD_PARAMETERS = { "Win" : { "name" : "ViberSetup.exe" },
+                     "Mac" : { "name" : "Viber.dmg" } }
 
 def splitted_build(build):
     try:
@@ -61,20 +63,17 @@ def last_build(build_directory_url):
 def generate_full_download_url(version_directory, buildType, platform):
     if len(platform) <= 0:
         if sys.platform == "win32":
-                platform = "Win"
+            platform = "Win"
         elif sys.platform == "darwin":
-                plaftorm = "Mac"
+            plaftorm = "Mac"
         else:
             print("{0} doesn't supported", sys.platform)
             return ""
 
-    installer = ""
-    if platform == "Win":
-        installer = "ViberSetup.exe"
-    elif platform == "Mac":
-        installer = "Viber.dmg"
-    else:
-        print("{0} doesn't supported", sys.platform)
+    try:
+        installer = BUILD_PARAMETERS[platform]["name"]
+    except KeyError as keyError:
+        print(keyError)
         return ""
 
     if len(buildType) <= 0:
