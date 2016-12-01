@@ -10,6 +10,7 @@ from HTMLParser import HTMLParser
 BUILD_DIRECTORY_URL = "http://builds.by.viberlab.com/builds/Viber/ViberPC/DevBuilds/"
 BUILD_VERSION_SPLITTER = "."
 BUILD_VERSION_SECTIONS = 4
+BUILD_DEFAULT_INSTALLER_NAME = "DefaultViberSetup"
 
 def splitted_build(build):
     try:
@@ -94,7 +95,7 @@ def download_build(url):
 
         file_name = url.rpartition("/")[2]
         if len(file_name) <= 0:
-            file_name = "DefaultViberSetup"
+            file_name = BUILD_DEFAULT_INSTALLER_NAME
             print("Invalid file name use {0}".format(file_name))
 
         with open(file_name, "wb") as output:
@@ -128,10 +129,11 @@ def main():
         print("build = {0}".format(build))
         if args.download:
             url = generate_full_download_url(os.path.join(version_directory, build), args.type, args.platform)
-            if download_build(url):
-                print("Downloaded...")
-            else:
-                print("Error was occured durint download process")
+            if len(url) > 0:
+                if download_build(url):
+                    print("Downloaded...")
+                else:
+                    print("Error was occured durint download process")
     else:
         print("Cannot found {0} build on server".format(args.version))
 
