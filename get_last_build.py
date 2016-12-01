@@ -11,8 +11,12 @@ BUILD_DIRECTORY_URL = "http://builds.by.viberlab.com/builds/Viber/ViberPC/DevBui
 BUILD_VERSION_SPLITTER = "."
 BUILD_VERSION_SECTIONS = 4
 BUILD_DEFAULT_INSTALLER_NAME = "DefaultViberSetup"
-BUILD_PARAMETERS = { "Win" : { "name" : "ViberSetup.exe" },
-                     "Mac" : { "name" : "Viber.dmg" } }
+
+PLATFORM_WIN = "Win"
+PLATFORM_MAC = "Mac"
+
+BUILD_PARAMETERS = { PLATFORM_WIN : { "name" : "ViberSetup.exe" },
+                     PLATFORM_MAC : { "name" : "Viber.dmg" } }
 
 def splitted_build(build):
     try:
@@ -63,9 +67,9 @@ def last_build(build_directory_url):
 def generate_full_download_url(version_directory, buildType, platform):
     if len(platform) <= 0:
         if sys.platform == "win32":
-            platform = "Win"
+            platform = PLATFORM_WIN
         elif sys.platform == "darwin":
-            plaftorm = "Mac"
+            plaftorm = PLATFORM_MAC
         else:
             print("{0} doesn't supported", sys.platform)
             return ""
@@ -115,7 +119,7 @@ def main():
     parser.add_argument("-v", "--version", dest="version", required=True, help="build version to process")
     parser.add_argument("-d", "--download", dest="download", action="store_true", default=False, help="download flag for current version")
     parser.add_argument("-t", "--type", dest="type", required=False, default="Release", help="build type(Debug, Release)")
-    parser.add_argument("-p", "--platform", dest="platform", required=False, default="Win", help="platform(Win, Mac)")
+    parser.add_argument("-p", "--platform", dest="platform", required=False, default=PLATFORM_WIN, help="platform(Win, Mac)")
     parser.add_argument("-r", "--root", dest="root", required=False, default=BUILD_DIRECTORY_URL, help="root build directory url")
 
     args = parser.parse_args()
