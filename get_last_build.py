@@ -8,19 +8,21 @@ import sys
 from HTMLParser import HTMLParser
 
 BUILD_DIRECTORY_URL = "http://builds.by.viberlab.com/builds/Viber/ViberPC/DevBuilds/"
+BUILD_VERSION_SPLITTER = "."
+BUILD_VERSION_SECTIONS = 4
 
 def splitted_build(build):
     try:
         if len(build) > 0:
             stripped_build = build.rstrip("/")
-            build_numbers = stripped_build.split(".")
-            if len(build_numbers) == 4:
+            build_numbers = stripped_build.split(BUILD_VERSION_SPLITTER)
+            if len(build_numbers) == BUILD_VERSION_SECTIONS:
                 return tuple(int(c) for c in build_numbers)
     except ValueError:
         # not int values
         pass
     
-    return (0, 0, 0, 0)
+    return tuple(0 for number in range(BUILD_VERSION_SECTIONS)) # (0, 0, 0, 0) for example
 
 class BuildsParser(HTMLParser):
     last_build = ""
