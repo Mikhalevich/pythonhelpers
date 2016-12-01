@@ -2,14 +2,18 @@
 
 import time
 import urllib2
+import argparse
+import os.path
+import sys
 from HTMLParser import HTMLParser
 
-BUILD_DIRECTORY_URL = "http://localhost:8080/test"
+BUILD_DIRECTORY_URL = "http://builds.by.viberlab.com/builds/Viber/ViberPC/DevBuilds/"
 
 def splitted_build(build):
     try:
         if len(build) > 0:
-            build_numbers = build.split(".")
+            stripped_build = build.rstrip("/")
+            build_numbers = stripped_build.split(".")
             if len(build_numbers) == 4:
                 return tuple(int(c) for c in build_numbers)
     except ValueError:
@@ -51,9 +55,84 @@ def last_build(build_directory_url):
     
     return ""
 
+def generate_full_download_url(version_directory, buildType, platform):
+    if len(platform) <= 0:
+        if sys.platform == "win32":
+                platform = "Win"
+        elif sys.platform == "darwin":
+                plaftorm = "Mac"
+        else:
+            print("{0} doesn't supported", sys.platform)
+            return ""
+
+    installer = ""
+    if platform == "Win":
+        installer = "ViberSetup.exe"
+    elif platform == "Mac":
+        installer = "Viber.dmg"
+    else:
+        print("{0} doesn't supported", sys.platform)
+        return ""
+
+    if len(buildType) <= 0:
+        buildType = "Release"
+
+    return os.path.join(version_directory, platform, buildType, installer)
+
+def download_build(url):
+    if len(url) <= 0:
+        print("Invaild url to download")
+        return
+
+    try:
+        response = urllib2.urlopen(url)
+        if response.getcode() != 200:
+            print("Invalid return code")
+            return False
+
+        file_name = url.rpartition("/")[2]
+        if len(file_name) <= 0:
+            file_name = "DefaultViberSetup"
+            print("Invalid file name use {0}".format(file_name))
+
+        with open(file_name, "wb") as output:
+            output.write(response.read())
+
+        print("{0} saved".format(file_name))
+    except urllib2.URLError as urlErr:
+            print(urlErr)
+            return False
+    except IndexError as indexErr:
+            print(indexErr)
+            return False
+
+    return True
+
 def main():
+    parser = argparse.ArgumentParser(description="Get last build from remote repository")
+    parser.add_argument("-v", "--version", dest="version", required=True, help="build version to process")
+    parser.add_argument("-d", "--download", dest="download", action="store_true", default=False, help="download flag for current version")
+    parser.add_argument("-t", "--type", dest="type", required=False, default="Release", help="build type(Debug, Release)")
+    parser.add_argument("-p", "--platform", dest="platform", required=False, default="Win", help="platform(Win, Mac)")
+    parser.add_argument("-r", "--root", dest="root", required=False, default=BUILD_DIRECTORY_URL, help="root build directory url")
+
+    args = parser.parse_args()
+
     start_time = time.time()
-    print("build = {0}".format(last_build(BUILD_DIRECTORY_URL)))
+
+    version_directory = os.path.join(args.root, args.version)
+    build = last_build(version_directory)
+    if len(build) > 0:
+        print("build = {0}".format(build))
+        if args.download:
+            url = generate_full_download_url(os.path.join(version_directory, build), args.type, args.platform)
+            if download_build(url):
+                print("Downloaded...")
+            else:
+                print("Error was occured durint download process")
+    else:
+        print("Cannot found {0} build on server".format(args.version))
+
     end_time = time.time()
 
     print("script execution: {0} ms".format((end_time - start_time) * 1000))
