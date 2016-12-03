@@ -11,6 +11,7 @@ BUILD_DIRECTORY_URL = "http://builds.by.viberlab.com/builds/Viber/ViberPC/DevBui
 BUILD_VERSION_SPLITTER = "."
 BUILD_VERSION_SECTIONS = 4
 BUILD_DEFAULT_INSTALLER_NAME = "DefaultViberSetup"
+BUILD_DOWNLOAD_FOLDER = os.path.join(os.path.expanduser("~"), "Downloads")
 
 PLATFORM_WIN = "Win"
 PLATFORM_MAC = "Mac"
@@ -88,17 +89,17 @@ def generate_full_download_url(version_directory, buildType, platform):
 def download_build(url, store_path):
     if len(url) <= 0:
         print("Invaild url to download")
-        return
+        return ""
 
     if len(store_path) <= 0:
         print("Invalid store path")
-        return
+        return ""
 
     try:
         response = urllib2.urlopen(url)
         if response.getcode() != 200:
             print("Invalid return code")
-            return False
+            return ""
 
         file_name = url.rpartition("/")[2]
         if len(file_name) <= 0:
@@ -112,21 +113,22 @@ def download_build(url, store_path):
         print("saved: {0}".format(os.path.abspath(full_path)))
     except urllib2.URLError as urlErr:
             print(urlErr)
-            return False
+            return ""
     except IndexError as indexErr:
             print(indexErr)
-            return False
+            return ""
 
-    return True
+    return full_path
 
 def main():
     parser = argparse.ArgumentParser(description="Get last build from remote repository")
     parser.add_argument("-v", "--version", dest="version", required=True, help="build version to process")
     parser.add_argument("-d", "--download", dest="download", action="store_true", default=False, help="download flag for current version")
-    parser.add_argument("-s", "--spath", dest="spath", required=False, default=".", help="store path for build")
+    parser.add_argument("-s", "--spath", dest="spath", required=False, default=BUILD_DOWNLOAD_FOLDER, help="store path for build")
     parser.add_argument("-t", "--type", dest="type", required=False, default="Release", help="build type(Debug, Release)")
     parser.add_argument("-p", "--platform", dest="platform", required=False, default=PLATFORM_WIN, help="platform(Win, Mac)")
     parser.add_argument("-r", "--root", dest="root", required=False, default=BUILD_DIRECTORY_URL, help="root build directory url")
+    parser.add_argument("-i", "--install", dest="install", action="store_true", default=False, help="trigger installation process")
     args = parser.parse_args()
 
     start_time = time.time()
@@ -139,7 +141,8 @@ def main():
             url = generate_full_download_url(os.path.join(version_directory, build), args.type, args.platform)
             print("url: {0}".format(url))
             if len(url) > 0:
-                if not download_build(url, args.spath):
+                installer_path = download_build(url, args.spath)
+                if len(installer_path) <= 0:
                     print("Error was occured during download process")
     else:
         print("Cannot found {0} build on server".format(args.version))
