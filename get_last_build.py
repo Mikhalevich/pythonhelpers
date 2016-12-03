@@ -104,7 +104,7 @@ def download_build(url):
         with open(file_name, "wb") as output:
             output.write(response.read())
 
-        print("{0} saved".format(file_name))
+        print("saved: {0}".format(file_name))
     except urllib2.URLError as urlErr:
             print(urlErr)
             return False
@@ -129,14 +129,13 @@ def main():
     version_directory = os.path.join(args.root, args.version)
     build = last_build(version_directory)
     if len(build) > 0:
-        print("build = {0}".format(build))
+        print("build: {0}".format(build))
         if args.download:
             url = generate_full_download_url(os.path.join(version_directory, build), args.type, args.platform)
+            print("url: {0}".format(url))
             if len(url) > 0:
-                if download_build(url):
-                    print("Downloaded...")
-                else:
-                    print("Error was occured durint download process")
+                if not download_build(url):
+                    print("Error was occured during download process")
     else:
         print("Cannot found {0} build on server".format(args.version))
 
