@@ -120,6 +120,9 @@ def download_build(url, store_path):
 
     return full_path
 
+def install_build(path):
+    print("not implemented")
+
 def main():
     parser = argparse.ArgumentParser(description="Get last build from remote repository")
     parser.add_argument("-v", "--version", dest="version", required=True, help="build version to process")
@@ -144,6 +147,9 @@ def main():
                 installer_path = download_build(url, args.spath)
                 if len(installer_path) <= 0:
                     print("Error was occured during download process")
+
+                if args.install:
+                    install_build(installer_path)
     else:
         print("Cannot found {0} build on server".format(args.version))
 
