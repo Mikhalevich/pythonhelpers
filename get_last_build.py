@@ -85,9 +85,13 @@ def generate_full_download_url(version_directory, buildType, platform):
 
     return os.path.join(version_directory, platform, buildType, installer)
 
-def download_build(url):
+def download_build(url, store_path):
     if len(url) <= 0:
         print("Invaild url to download")
+        return
+
+    if len(store_path) <= 0:
+        print("Invalid store path")
         return
 
     try:
@@ -101,10 +105,11 @@ def download_build(url):
             file_name = BUILD_DEFAULT_INSTALLER_NAME
             print("Invalid file name use {0}".format(file_name))
 
-        with open(file_name, "wb") as output:
+        full_path = os.path.join(store_path, file_name)
+        with open(full_path, "wb") as output:
             output.write(response.read())
 
-        print("saved: {0}".format(file_name))
+        print("saved: {0}".format(os.path.abspath(full_path)))
     except urllib2.URLError as urlErr:
             print(urlErr)
             return False
@@ -118,10 +123,10 @@ def main():
     parser = argparse.ArgumentParser(description="Get last build from remote repository")
     parser.add_argument("-v", "--version", dest="version", required=True, help="build version to process")
     parser.add_argument("-d", "--download", dest="download", action="store_true", default=False, help="download flag for current version")
+    parser.add_argument("-s", "--spath", dest="spath", required=False, default=".", help="store path for build")
     parser.add_argument("-t", "--type", dest="type", required=False, default="Release", help="build type(Debug, Release)")
     parser.add_argument("-p", "--platform", dest="platform", required=False, default=PLATFORM_WIN, help="platform(Win, Mac)")
     parser.add_argument("-r", "--root", dest="root", required=False, default=BUILD_DIRECTORY_URL, help="root build directory url")
-
     args = parser.parse_args()
 
     start_time = time.time()
@@ -134,7 +139,7 @@ def main():
             url = generate_full_download_url(os.path.join(version_directory, build), args.type, args.platform)
             print("url: {0}".format(url))
             if len(url) > 0:
-                if not download_build(url):
+                if not download_build(url, args.spath):
                     print("Error was occured during download process")
     else:
         print("Cannot found {0} build on server".format(args.version))
