@@ -145,11 +145,11 @@ def main():
             print("url: {0}".format(url))
             if len(url) > 0:
                 installer_path = download_build(url, args.spath)
-                if len(installer_path) <= 0:
+                if len(installer_path) > 0:
+                    if args.install:
+                        install_build(installer_path)
+                else:
                     print("Error was occured during download process")
-
-                if args.install:
-                    install_build(installer_path)
     else:
         print("Cannot found {0} build on server".format(args.version))
 
