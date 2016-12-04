@@ -18,8 +18,8 @@ BUILD_DOWNLOAD_FOLDER = os.path.join(os.path.expanduser("~"), "Downloads")
 PLATFORM_WIN = "Win"
 PLATFORM_MAC = "Mac"
 
-BUILD_PARAMETERS = { PLATFORM_WIN : { "name" : "ViberSetup.exe" },
-                     PLATFORM_MAC : { "name" : "Viber.dmg" } }
+BUILD_PARAMETERS = { PLATFORM_WIN : { "installer_name" : "ViberSetup.exe" },
+                     PLATFORM_MAC : { "installer_name" : "Viber.dmg" } }
 
 def platform_settings(platform):
     if len(platform) <= 0:
@@ -128,7 +128,7 @@ def is_viber_process_running():
     try:
         pids = subprocess.check_output(["pidof", "Viber"])
     except subprocess.CalledProcessError:
-        print("Viber is not running")
+        print("viber is not running")
         return False
 
     if len(pids) > 0:
@@ -207,7 +207,7 @@ def process(args):
             print("Invalid platform for download and install")
             return False
 
-        installer = settings["name"]
+        installer = settings["installer_name"]
         buildType = args.type
         if len(buildType) <= 0:
             buildType = "Release"
