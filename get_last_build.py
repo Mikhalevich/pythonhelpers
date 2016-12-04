@@ -21,6 +21,24 @@ PLATFORM_MAC = "Mac"
 BUILD_PARAMETERS = { PLATFORM_WIN : { "name" : "ViberSetup.exe" },
                      PLATFORM_MAC : { "name" : "Viber.dmg" } }
 
+def platform_settings(platform):
+    if len(platform) <= 0:
+        if sys.platform == "win32":
+            platform = PLATFORM_WIN
+        elif sys.platform == "darwin":
+            plaftorm = PLATFORM_MAC
+        else:
+            print("{0} doesn't supported", sys.platform)
+            return {}, ""
+
+    try:
+        settings = BUILD_PARAMETERS[platform]
+    except KeyError as keyError:
+        print(keyError)
+        return {}, ""
+
+    return settings, platform
+
 def splitted_build(build):
     try:
         if len(build) > 0:
@@ -66,27 +84,6 @@ def last_build(build_directory_url):
         print(urlError)
     
     return ""
-
-def generate_full_download_url(version_directory, buildType, platform):
-    if len(platform) <= 0:
-        if sys.platform == "win32":
-            platform = PLATFORM_WIN
-        elif sys.platform == "darwin":
-            plaftorm = PLATFORM_MAC
-        else:
-            print("{0} doesn't supported", sys.platform)
-            return ""
-
-    try:
-        installer = BUILD_PARAMETERS[platform]["name"]
-    except KeyError as keyError:
-        print(keyError)
-        return ""
-
-    if len(buildType) <= 0:
-        buildType = "Release"
-
-    return os.path.join(version_directory, platform, buildType, installer)
 
 def download_build(url, store_path):
     if len(url) <= 0:
@@ -196,6 +193,41 @@ def install_build(path, need_backup):
 
     return True
 
+def process(args):
+    version_directory = os.path.join(args.root, args.version)
+    build = last_build(version_directory)
+    if len(build) <= 0:
+        print("Cannot found {0} build on server".format(args.version))
+        return False
+
+    print("build: {0}".format(build))
+    if args.download:
+        settings, platform = platform_settings(args.platform)
+        if len(settings) <= 0:
+            print("Invalid platform for download and install")
+            return False
+
+        installer = settings["name"]
+        buildType = args.type
+        if len(buildType) <= 0:
+            buildType = "Release"
+
+        download_url = os.path.join(version_directory, build, platform, buildType, installer)
+        print("url: {0}".format(download_url))
+        if len(download_url) <= 0:
+            print("Invalid url")
+            return False
+
+        installer_path = download_build(download_url, args.spath)
+        if len(installer_path) <= 0:
+            print("Error was occured during download process")
+
+        if args.install:
+            if not install_build(installer_path, args.backup):
+                return False
+
+    return True
+
 def main():
     parser = argparse.ArgumentParser(description="Get last build from remote repository")
     parser.add_argument("-v", "--version", dest="version", required=True, help="build version to process")
@@ -209,24 +241,10 @@ def main():
     args = parser.parse_args()
 
     start_time = time.time()
-
-    version_directory = os.path.join(args.root, args.version)
-    build = last_build(version_directory)
-    if len(build) > 0:
-        print("build: {0}".format(build))
-        if args.download:
-            url = generate_full_download_url(os.path.join(version_directory, build), args.type, args.platform)
-            print("url: {0}".format(url))
-            if len(url) > 0:
-                installer_path = download_build(url, args.spath)
-                if len(installer_path) > 0:
-                    if args.install:
-                        install_build(installer_path, args.backup)
-                else:
-                    print("Error was occured during download process")
+    if process(args):
+        print("success")
     else:
-        print("Cannot found {0} build on server".format(args.version))
-
+        print("failure")
     end_time = time.time()
 
     print("script execution: {0} ms".format((end_time - start_time) * 1000))
