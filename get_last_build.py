@@ -6,7 +6,7 @@ import argparse
 import os.path
 import sys
 import subprocess
-import zipfile
+import shutil
 from HTMLParser import HTMLParser
 
 BUILD_DIRECTORY_URL = "http://builds.by.viberlab.com/builds/Viber/ViberPC/DevBuilds/"
@@ -130,8 +130,8 @@ def is_viber_process_running():
     # hardcoded for linux right now
     try:
         pids = subprocess.check_output(["pidof", "Viber"])
-    except subprocess.CalledProcessError as processErr:
-        print(processErr)
+    except subprocess.CalledProcessError:
+        print("Viber is not running")
         return False
 
     if len(pids) > 0:
@@ -162,10 +162,8 @@ def stop_viber_process():
     return True
 
 def backup_database(backup_folder):
-    zip_name = os.path.join(backup_folder, time.strftime("%Y_%m_%d_Viber.zip"))
-    with zipfile.ZipFile(zip_name, "w") as archive:
-        archive.write(os.path.join(os.path.expanduser("~"), ".ViberPC"))
-
+    zip_name = os.path.join(backup_folder, time.strftime("%Y_%m_%d_Viber"))
+    zip_name = shutil.make_archive(zip_name, "zip", os.path.join(os.path.expanduser("~"), ".ViberPC"))
     return zip_name
 
 def install_build(path, need_backup):
@@ -178,6 +176,7 @@ def install_build(path, need_backup):
         return False
 
     if need_backup:
+        print("backup in progress...")
         backup_folder = os.path.dirname(os.path.abspath(path))
         zip_name = backup_database(backup_folder)
         if len(zip_name) <= 0:
