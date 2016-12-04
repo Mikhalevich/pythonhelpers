@@ -5,6 +5,8 @@ import urllib2
 import argparse
 import os.path
 import sys
+import subprocess
+import zipfile
 from HTMLParser import HTMLParser
 
 BUILD_DIRECTORY_URL = "http://builds.by.viberlab.com/builds/Viber/ViberPC/DevBuilds/"
@@ -95,6 +97,10 @@ def download_build(url, store_path):
         print("Invalid store path")
         return ""
 
+    if not os.path.isdir(store_path):
+        print("{0} is not a valid directory".format(store_path))
+        store_path = "."
+
     try:
         response = urllib2.urlopen(url)
         if response.getcode() != 200:
@@ -120,8 +126,76 @@ def download_build(url, store_path):
 
     return full_path
 
-def install_build(path):
-    print("not implemented")
+def is_viber_process_running():
+    # hardcoded for linux right now
+    try:
+        pids = subprocess.check_output(["pidof", "Viber"])
+    except subprocess.CalledProcessError as processErr:
+        print(processErr)
+        return False
+
+    if len(pids) > 0:
+        return True
+    return False
+
+def stop_viber_process():
+    # hardcoded for linux righ now
+    if not os.path.exists("/opt/viber/Viber"):
+        return True
+
+    if is_viber_process_running():
+        retCode = subprocess.call(["/opt/viber/Viber", "ExitViber"])
+        if retCode != 0:
+            print("Invalid result code for viber: {0}".format(retCode))
+            return False
+
+        sys.stdout.write("stopring viber process...")
+        sys.stdout.flush()
+        while True:
+            time.sleep(1)
+            if is_viber_process_running():
+                sys.stdout.write(".")
+                sys.stdout.flush()
+            else:
+                break
+
+    return True
+
+def backup_database(backup_folder):
+    zip_name = os.path.join(backup_folder, time.strftime("%Y_%m_%d_Viber.zip"))
+    with zipfile.ZipFile(zip_name, "w") as archive:
+        archive.write(os.path.join(os.path.expanduser("~"), ".ViberPC"))
+
+    return zip_name
+
+def install_build(path, need_backup):
+    if len(path) <= 0:
+        print("Invalid installer path")
+        return False
+
+    if not stop_viber_process():
+        print("Error was occuring during stoping viber process")
+        return False
+
+    if need_backup:
+        backup_folder = os.path.dirname(os.path.abspath(path))
+        zip_name = backup_database(backup_folder)
+        if len(zip_name) <= 0:
+            print("Error was occuring during buckuping database")
+            return False
+        print("backup: {0}".format(zip_name))
+
+    try:
+        retCode = subprocess.call(path)
+    except OSError as osErr:
+        print(osErr)
+        return False
+
+    if retCode != 0:
+        print("Invalid result code for installer: {0}".format(retCode))
+        return False
+
+    return True
 
 def main():
     parser = argparse.ArgumentParser(description="Get last build from remote repository")
@@ -132,6 +206,7 @@ def main():
     parser.add_argument("-p", "--platform", dest="platform", required=False, default=PLATFORM_WIN, help="platform(Win, Mac)")
     parser.add_argument("-r", "--root", dest="root", required=False, default=BUILD_DIRECTORY_URL, help="root build directory url")
     parser.add_argument("-i", "--install", dest="install", action="store_true", default=False, help="trigger installation process")
+    parser.add_argument("-b", "--backup", dest="backup", action="store_true", default=False, help="backup ViberPC folder")
     args = parser.parse_args()
 
     start_time = time.time()
@@ -147,7 +222,7 @@ def main():
                 installer_path = download_build(url, args.spath)
                 if len(installer_path) > 0:
                     if args.install:
-                        install_build(installer_path)
+                        install_build(installer_path, args.backup)
                 else:
                     print("Error was occured during download process")
     else:
