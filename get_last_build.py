@@ -184,6 +184,8 @@ def backup_database(backup_folder, db_path):
 def make_install_command(installer_path, platform):
     if platform == PLATFORM_LIN:
         return ["sudo", "dpkg", "-i", installer_path]
+    elif platform == PLATFORM_MAC:
+        return ["open", installer_path]
     else:
         return installer_path
 
