@@ -35,6 +35,9 @@ def get_platform():
 
     return ""
 
+def urljoin(*args):
+    return "/".join(s.rstrip("/") for s in args)
+
 def platform_settings(platform):
     if len(platform) <= 0:
         platform = get_platform()
@@ -78,7 +81,7 @@ class BuildsParser(HTMLParser):
     def parse_build(self, build):
         if splitted_build(build) > splitted_build(self.last_build):
             try:
-                response = urllib2.urlopen(os.path.join(self.url, build, self.platform))
+                response = urllib2.urlopen(urljoin(self.url, build, self.platform))
                 if response.getcode() == 200: # page exists
                     self.last_build = build
             except urllib2.URLError as urlError:
@@ -226,9 +229,9 @@ def make_build_name(base_name, platform, version, type):
 def make_download_url(version_directory, build, platform, build_type, installer):
     if platform == PLATFORM_LIN:
         installer = make_build_name(installer, platform, build, build_type)
-        download_url = os.path.join(version_directory, build, platform, installer)
+        download_url = urljoin(version_directory, build, platform, installer)
     else:
-        download_url = os.path.join(version_directory, build, platform, build_type, installer)
+        download_url = urljoin(version_directory, build, platform, build_type, installer)
 
     return download_url
 
@@ -238,7 +241,7 @@ def process(args):
         print("Invalid platform for download and install")
         return False
 
-    version_directory = os.path.join(args.root, args.version)
+    version_directory = urljoin(args.root, args.version)
     build = last_build(version_directory, platform)
     if len(build) <= 0:
         print("Cannot found {0} build on server".format(args.version))
