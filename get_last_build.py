@@ -29,6 +29,28 @@ BUILD_PARAMETERS = { PLATFORM_WIN : { "installer_name" : "ViberSetup.exe",
                                       "installed_path" : "/opt/viber/Viber",
                                       "db_path" : os.path.join(os.path.expanduser("~"), ".ViberPC") } }
 
+
+def make_build_name(base_name, platform, version, type):
+    name = base_name.replace("%version%", version.rstrip("/")).replace("%type%", type)
+    return name
+
+def make_download_url(version_directory, build, platform, build_type, installer):
+    if platform == PLATFORM_LIN:
+        installer = make_build_name(installer, platform, build, build_type)
+        download_url = urljoin(version_directory, build, platform, installer)
+    else:
+        download_url = urljoin(version_directory, build, platform, build_type, installer)
+
+    return download_url
+
+def make_install_command(installer_path, platform):
+    if platform == PLATFORM_LIN:
+        return ["sudo", "dpkg", "-i", installer_path]
+    elif platform == PLATFORM_MAC:
+        return ["open", installer_path]
+    else:
+        return installer_path
+
 def get_platform():
     if sys.platform.startswith("win"):
         return PLATFORM_WIN
@@ -198,14 +220,6 @@ def backup_database(backup_folder, db_path):
     zip_name = shutil.make_archive(zip_name, "zip", db_path)
     return zip_name
 
-def make_install_command(installer_path, platform):
-    if platform == PLATFORM_LIN:
-        return ["sudo", "dpkg", "-i", installer_path]
-    elif platform == PLATFORM_MAC:
-        return ["open", installer_path]
-    else:
-        return installer_path
-
 def install_build(platform, settings, path, install_command, need_backup):
     if len(path) <= 0:
         print("Invalid installer path")
@@ -235,19 +249,6 @@ def install_build(platform, settings, path, install_command, need_backup):
         return False
 
     return True
-
-def make_build_name(base_name, platform, version, type):
-    name = base_name.replace("%version%", version.rstrip("/")).replace("%type%", type)
-    return name
-
-def make_download_url(version_directory, build, platform, build_type, installer):
-    if platform == PLATFORM_LIN:
-        installer = make_build_name(installer, platform, build, build_type)
-        download_url = urljoin(version_directory, build, platform, installer)
-    else:
-        download_url = urljoin(version_directory, build, platform, build_type, installer)
-
-    return download_url
 
 def process(args):
     settings, platform = platform_settings(args.platform)
