@@ -19,9 +19,15 @@ PLATFORM_WIN = "Win"
 PLATFORM_MAC = "Mac"
 PLATFORM_LIN = "Lin"
 
-BUILD_PARAMETERS = { PLATFORM_WIN : { "installer_name" : "ViberSetup.exe", "installed_path" : "STUB RIGHT NOW", "db_path" : "STUB RIGHT NOW" },
-                     PLATFORM_MAC : { "installer_name" : "Viber.dmg", "installed_path" : "/Applications/Viber.app/Contents/MacOS/Viber", "db_path" : os.path.join(os.path.expanduser("~"), "Library/Application Support") },
-                     PLATFORM_LIN : { "installer_name" : "viber_%version%_%type%_amd64.deb", "installed_path" : "/opt/viber/Viber", "db_path" : os.path.join(os.path.expanduser("~"), ".ViberPC") } }
+BUILD_PARAMETERS = { PLATFORM_WIN : { "installer_name" : "ViberSetup.exe",
+                                      "installed_path" : "STUB RIGHT NOW",
+                                      "db_path" : "STUB RIGHT NOW" },
+                     PLATFORM_MAC : { "installer_name" : "Viber.dmg",
+                                      "installed_path" : "/Applications/Viber.app/Contents/MacOS/Viber",
+                                      "db_path" : os.path.join(os.path.expanduser("~"), "Library/Application Support") },
+                     PLATFORM_LIN : { "installer_name" : "viber_%version%_%type%_amd64.deb",
+                                      "installed_path" : "/opt/viber/Viber",
+                                      "db_path" : os.path.join(os.path.expanduser("~"), ".ViberPC") } }
 
 def get_platform():
     if sys.platform.startswith("win"):
