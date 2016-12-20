@@ -283,6 +283,13 @@ def main():
     parser.add_argument("-b", "--backup", dest="backup", action="store_true", default=False, help="backup ViberPC folder")
     args = parser.parse_args()
 
+    if args.install:
+        current_platform = get_platform();
+        if args.platform != current_platform:
+            print("You trying to install build for {0} on {1}".format(args.platform, current_platform))
+            args.install = False
+        args.download = True
+
     start_time = time.time()
     if process(args):
         print("success")
