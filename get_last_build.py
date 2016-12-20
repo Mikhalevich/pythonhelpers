@@ -20,7 +20,7 @@ PLATFORM_MAC = "Mac"
 PLATFORM_LIN = "Lin"
 
 BUILD_PARAMETERS = { PLATFORM_WIN : { "installer_name" : "ViberSetup.exe",
-                                      "installed_path" : os.path.join(os.path.expanduser("~"), "AppData/Local/Viber"),
+                                      "installed_path" : os.path.join(os.path.expanduser("~"), "AppData/Local/Viber/Viber.exe"),
                                       "db_path" : os.path.join(os.path.expanduser("~"), "AppData/Roaming/ViberPC") },
                      PLATFORM_MAC : { "installer_name" : "Viber.dmg",
                                       "installed_path" : "/Applications/Viber.app/Contents/MacOS/Viber",
