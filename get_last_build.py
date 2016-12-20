@@ -150,24 +150,32 @@ def download_build(url, store_path):
 
     return full_path
 
-def is_viber_process_running():
-    # hardcoded for linux and mac
-    try:
-        pids = subprocess.check_output(["pgrep", "Viber"])
-    except subprocess.CalledProcessError:
-        print("viber is not running")
-        return False
+def is_viber_process_running(platform):
+    if platform == PLATFORM_LIN or platform == PLATFORM_MAC:
+        try:
+            pids = subprocess.check_output(["pgrep", "Viber"])
+        except subprocess.CalledProcessError:
+            print("viber is not running")
+            return False
 
-    if len(pids) > 0:
-        return True
+        if len(pids) > 0:
+            return True
+    elif platform == PLATFORM_WIN: # some crappy code for windows
+        process = subprocess.Popen('tasklist.exe /FO CSV /FI "IMAGENAME eq {0}"'.format("Viber.exe"),
+                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+        out, err = process.communicate()
+        try:
+            return out.split("\n")[1].startswith('"Viber.exe"')
+        except:
+            return False
+
     return False
 
-def stop_viber_process(installed_path):
-    # hardcoded for linux righ now
+def stop_viber_process(platform, installed_path):
     if not os.path.exists(installed_path):
         return True
 
-    if is_viber_process_running():
+    if is_viber_process_running(platform):
         retCode = subprocess.call([installed_path, "ExitViber"])
         if retCode != 0:
             print("Invalid result code for viber: {0}".format(retCode))
@@ -177,7 +185,7 @@ def stop_viber_process(installed_path):
         sys.stdout.flush()
         while True:
             time.sleep(1)
-            if is_viber_process_running():
+            if is_viber_process_running(platform):
                 sys.stdout.write(".")
                 sys.stdout.flush()
             else:
@@ -198,12 +206,12 @@ def make_install_command(installer_path, platform):
     else:
         return installer_path
 
-def install_build(settings, path, install_command, need_backup):
+def install_build(platform, settings, path, install_command, need_backup):
     if len(path) <= 0:
         print("Invalid installer path")
         return False
 
-    if not stop_viber_process(settings["installed_path"]):
+    if not stop_viber_process(platform, settings["installed_path"]):
         print("Error was occuring during stoping viber process")
         return False
 
@@ -272,7 +280,7 @@ def process(args):
 
         if args.install:
             install_command = make_install_command(installer_path, platform)
-            if not install_build(settings, installer_path, install_command, args.backup):
+            if not install_build(platform, settings, installer_path, install_command, args.backup):
                 return False
 
     return True
