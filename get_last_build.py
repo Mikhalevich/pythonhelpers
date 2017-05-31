@@ -81,7 +81,7 @@ def platform_settings(platform):
 def splitted_build(build):
     try:
         if len(build) > 0:
-            stripped_build = build.rstrip("/")
+            stripped_build = build.strip("./")
             build_numbers = stripped_build.split(BUILD_VERSION_SPLITTER)
             if len(build_numbers) == BUILD_VERSION_SECTIONS:
                 return tuple(int(c) for c in build_numbers)
