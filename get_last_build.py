@@ -19,20 +19,23 @@ PLATFORM_WIN = "Win"
 PLATFORM_MAC = "Mac"
 PLATFORM_LIN = "Lin"
 
-BUILD_PARAMETERS = { PLATFORM_WIN : { "installer_name" : "ViberSetup.exe",
-                                      "installed_path" : os.path.join(os.path.expanduser("~"), "AppData/Local/Viber/Viber.exe"),
-                                      "db_path" : os.path.join(os.path.expanduser("~"), "AppData/Roaming/ViberPC") },
-                     PLATFORM_MAC : { "installer_name" : "Viber.dmg",
-                                      "installed_path" : "/Applications/Viber.app/Contents/MacOS/Viber",
-                                      "db_path" : os.path.join(os.path.expanduser("~"), "Library/Application Support") },
-                     PLATFORM_LIN : { "installer_name" : "viber_%version%_%type%_amd64.deb",
-                                      "installed_path" : "/opt/viber/Viber",
-                                      "db_path" : os.path.join(os.path.expanduser("~"), ".ViberPC") } }
+BUILD_PARAMETERS = {
+    PLATFORM_WIN: {"installer_name": "ViberSetup.exe",
+                   "installed_path": os.path.join(os.path.expanduser("~"), "AppData/Local/Viber/Viber.exe"),
+                   "db_path": os.path.join(os.path.expanduser("~"), "AppData/Roaming/ViberPC")},
+    PLATFORM_MAC: {"installer_name": "Viber.dmg",
+                   "installed_path": "/Applications/Viber.app/Contents/MacOS/Viber",
+                   "db_path": os.path.join(os.path.expanduser("~"), "Library/Application Support")},
+    PLATFORM_LIN: {"installer_name": "viber_%version%_%type%_amd64.deb",
+                   "installed_path": "/opt/viber/Viber",
+                   "db_path": os.path.join(os.path.expanduser("~"), ".ViberPC")}
+}
 
 
 def make_build_name(base_name, platform, version, type):
     name = base_name.replace("%version%", version.rstrip("/")).replace("%type%", type)
     return name
+
 
 def make_download_url(version_directory, build, platform, build_type, installer):
     if platform == PLATFORM_LIN:
@@ -43,6 +46,7 @@ def make_download_url(version_directory, build, platform, build_type, installer)
 
     return download_url
 
+
 def make_install_command(installer_path, platform):
     if platform == PLATFORM_LIN:
         return ["sudo", "dpkg", "-i", installer_path]
@@ -50,6 +54,7 @@ def make_install_command(installer_path, platform):
         return ["open", installer_path]
     else:
         return installer_path
+
 
 def get_platform():
     if sys.platform.startswith("win"):
@@ -63,8 +68,10 @@ def get_platform():
 
     return ""
 
+
 def urljoin(*args):
     return "/".join(s.rstrip("/") for s in args)
+
 
 def platform_settings(platform):
     if len(platform) <= 0:
@@ -78,6 +85,7 @@ def platform_settings(platform):
 
     return settings, platform
 
+
 def splitted_build(build):
     try:
         if len(build) > 0:
@@ -89,7 +97,8 @@ def splitted_build(build):
         # not int values
         pass
     
-    return tuple(0 for number in range(BUILD_VERSION_SECTIONS)) # (0, 0, 0, 0) for example
+    return tuple(0 for number in range(BUILD_VERSION_SECTIONS))  # (0, 0, 0, 0) for example
+
 
 class BuildsParser(HTMLParser):
     def __init__(self, url, platform):
@@ -98,25 +107,25 @@ class BuildsParser(HTMLParser):
         self.url = url
         self.platform = platform
 
-    
     def handle_starttag(self, tag, attrs):
         if tag == 'a':
             for attr in attrs:
                 if attr[0] == 'href':
                     self.parse_build(attr[1])
                     break
-    
+
     def parse_build(self, build):
         if splitted_build(build) > splitted_build(self.last_build):
             try:
                 response = urllib2.urlopen(urljoin(self.url, build, self.platform))
-                if response.getcode() == 200: # page exists
+                if response.getcode() == 200:  # page exists
                     self.last_build = build
             except urllib2.URLError as urlError:
-                pass # page not exists
+                pass  # page not exists
         
     def build(self):
         return self.last_build
+
 
 def last_build(build_directory_url, platform):
     try:
@@ -134,9 +143,10 @@ def last_build(build_directory_url, platform):
     
     return ""
 
+
 def download_build(url, store_path):
     if len(url) <= 0:
-        print("Invaild url to download")
+        print("Invalid url to download")
         return ""
 
     if len(store_path) <= 0:
@@ -172,6 +182,7 @@ def download_build(url, store_path):
 
     return full_path
 
+
 def is_viber_process_running(platform):
     if platform == PLATFORM_LIN or platform == PLATFORM_MAC:
         try:
@@ -182,7 +193,7 @@ def is_viber_process_running(platform):
 
         if len(pids) > 0:
             return True
-    elif platform == PLATFORM_WIN: # some crappy code for windows
+    elif platform == PLATFORM_WIN:  # some crappy code for windows
         process = subprocess.Popen('tasklist.exe /FO CSV /FI "IMAGENAME eq {0}"'.format("Viber.exe"),
                                     stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
         out, err = process.communicate()
@@ -192,6 +203,7 @@ def is_viber_process_running(platform):
             return False
 
     return False
+
 
 def stop_viber_process(platform, installed_path):
     if not os.path.exists(installed_path):
@@ -203,7 +215,7 @@ def stop_viber_process(platform, installed_path):
             print("Invalid result code for viber: {0}".format(retCode))
             return False
 
-        sys.stdout.write("stopring viber process...")
+        sys.stdout.write("stoping viber process...")
         sys.stdout.flush()
         while True:
             time.sleep(1)
@@ -215,10 +227,12 @@ def stop_viber_process(platform, installed_path):
 
     return True
 
+
 def backup_database(backup_folder, db_path):
     zip_name = os.path.join(backup_folder, time.strftime("%Y_%m_%d_Viber"))
     zip_name = shutil.make_archive(zip_name, "zip", db_path)
     return zip_name
+
 
 def install_build(platform, settings, path, install_command, need_backup):
     if len(path) <= 0:
@@ -226,7 +240,7 @@ def install_build(platform, settings, path, install_command, need_backup):
         return False
 
     if not stop_viber_process(platform, settings["installed_path"]):
-        print("Error was occuring during stoping viber process")
+        print("Error was occurring during stoping viber process")
         return False
 
     if need_backup:
@@ -234,21 +248,22 @@ def install_build(platform, settings, path, install_command, need_backup):
         backup_folder = os.path.dirname(os.path.abspath(path))
         zip_name = backup_database(backup_folder, settings["db_path"])
         if len(zip_name) <= 0:
-            print("Error was occuring during buckuping database")
+            print("Error was occurring during backup database")
             return False
         print("backup: {0}".format(zip_name))
 
     try:
-        retCode = subprocess.call(install_command)
+        ret_code = subprocess.call(install_command)
     except OSError as osErr:
         print(osErr)
         return False
 
-    if retCode != 0:
+    if ret_code != 0:
         print("Invalid result code for installer: {0}".format(retCode))
         return False
 
     return True
+
 
 def process(args):
     settings, platform = platform_settings(args.platform)
@@ -265,9 +280,9 @@ def process(args):
     print("build: {0}".format(build))
     if args.download:
         installer = settings["installer_name"]
-        buildType = args.type
-        if len(buildType) <= 0:
-            buildType = "Release"
+        build_type = args.type
+        if len(build_type) <= 0:
+            build_type = "Release"
 
         download_url = make_download_url(version_directory, build, platform, buildType, installer)
         print("url: {0}".format(download_url))
@@ -277,7 +292,7 @@ def process(args):
 
         installer_path = download_build(download_url, args.spath)
         if len(installer_path) <= 0:
-            print("Error was occured during download process")
+            print("Error was occurred during download process")
 
         if args.install:
             install_command = make_install_command(installer_path, platform)
@@ -285,6 +300,7 @@ def process(args):
                 return False
 
     return True
+
 
 def main():
     parser = argparse.ArgumentParser(description="Get last build from remote repository")
@@ -299,7 +315,7 @@ def main():
     args = parser.parse_args()
 
     if args.install:
-        current_platform = get_platform();
+        current_platform = get_platform()
         if args.platform != current_platform:
             print("You trying to install build for {0} on {1}".format(args.platform, current_platform))
             args.install = False
