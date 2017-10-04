@@ -33,7 +33,7 @@ BUILD_PARAMETERS = {
 
 
 def make_build_name(base_name, platform, version, type):
-    name = base_name.replace("%version%", version.rstrip("/")).replace("%type%", type)
+    name = base_name.replace("%version%", version.lstrip("./").rstrip("/")).replace("%type%", type)
     return name
 
 
@@ -70,7 +70,7 @@ def get_platform():
 
 
 def urljoin(*args):
-    return "/".join(s.rstrip("/") for s in args)
+    return "/".join(s.lstrip("./").rstrip("/") for s in args)
 
 
 def platform_settings(platform):
@@ -284,7 +284,7 @@ def process(args):
         if len(build_type) <= 0:
             build_type = "Release"
 
-        download_url = make_download_url(version_directory, build, platform, buildType, installer)
+        download_url = make_download_url(version_directory, build, platform, build_type, installer)
         print("url: {0}".format(download_url))
         if len(download_url) <= 0:
             print("Invalid url")
