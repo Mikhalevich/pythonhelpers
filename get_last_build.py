@@ -1,13 +1,14 @@
-#!/usr/bin/python
+#!/usr/bin/env python3
 
 import time
-import urllib2
+import urllib.request
+import urllib.error
 import argparse
 import os.path
 import sys
 import subprocess
 import shutil
-from HTMLParser import HTMLParser
+from html.parser import HTMLParser
 
 BUILD_DIRECTORY_URL = "http://builds.by.viberlab.com/builds/Viber/ViberPC/DevBuilds/"
 BUILD_VERSION_SPLITTER = "."
@@ -19,41 +20,10 @@ PLATFORM_WIN = "Win"
 PLATFORM_MAC = "Mac"
 PLATFORM_LIN = "Lin"
 
-BUILD_PARAMETERS = {
-    PLATFORM_WIN: {"installer_name": "ViberSetup.exe",
-                   "installed_path": os.path.join(os.path.expanduser("~"), "AppData/Local/Viber/Viber.exe"),
-                   "db_path": os.path.join(os.path.expanduser("~"), "AppData/Roaming/ViberPC")},
-    PLATFORM_MAC: {"installer_name": "Viber.dmg",
-                   "installed_path": "/Applications/Viber.app/Contents/MacOS/Viber",
-                   "db_path": os.path.join(os.path.expanduser("~"), "Library/Application Support")},
-    PLATFORM_LIN: {"installer_name": "viber_%version%_%type%_amd64.deb",
-                   "installed_path": "/opt/viber/Viber",
-                   "db_path": os.path.join(os.path.expanduser("~"), ".ViberPC")}
-}
 
-
-def make_build_name(base_name, platform, version, type):
-    name = base_name.replace("%version%", version.lstrip("./").rstrip("/")).replace("%type%", type)
-    return name
-
-
-def make_download_url(version_directory, build, platform, build_type, installer):
-    if platform == PLATFORM_LIN:
-        installer = make_build_name(installer, platform, build, build_type)
-        download_url = urljoin(version_directory, build, platform, installer)
-    else:
-        download_url = urljoin(version_directory, build, platform, build_type, installer)
-
-    return download_url
-
-
-def make_install_command(installer_path, platform):
-    if platform == PLATFORM_LIN:
-        return ["sudo", "dpkg", "-i", installer_path]
-    elif platform == PLATFORM_MAC:
-        return ["open", installer_path]
-    else:
-        return installer_path
+class CustomError(RuntimeError):
+    def __init__(self, error_message):
+        self.message = error_message
 
 
 def get_platform():
@@ -69,237 +39,285 @@ def get_platform():
     return ""
 
 
+def param_checker(*param_list):
+    for param in param_list:
+        if not param:
+            raise CustomError("{0} is missing from config".format(param))
+
+
 def urljoin(*args):
     return "/".join(s.lstrip("./").rstrip("/") for s in args)
 
 
-def platform_settings(platform):
-    if len(platform) <= 0:
-        platform = get_platform()
+class Configuration:
+    def __init__(self, args):
+        self.__platform = args.platform
+        self.__init_platform_specific_parameters(args.platform)
+        self.__version = args.version
+        self.__store_path = args.spath
+        self.__build_type = args.type
+        self.__root_url = args.root
+        self.__backup = args.backup
+        self.__install = args.install
+        self.__download = args.download
 
-    try:
-        settings = BUILD_PARAMETERS[platform]
-    except KeyError as keyError:
-        print(keyError)
-        return {}, ""
+        if self.__install:
+            current_platform = get_platform()
+            if self.__platform != current_platform:
+                print("You trying to install build for {0} on {1}".format(self.__platform, current_platform))
+                self.__install = False
+            self.__download = True
 
-    return settings, platform
+        if not os.path.isdir(self.__store_path):
+            print("{0} is not a valid directory".format(self.__store_path))
+            self.__store_path = "."
+
+        param_checker(self.__platform,
+                      self.__version,
+                      self.__store_path,
+                      self.__build_type,
+                      self.__root_url)
+
+    def __init_platform_specific_parameters(self, platform):
+        if not platform:
+            raise CustomError("Platform is undefined")
+        if platform == PLATFORM_WIN:
+            self.__installer_name = "ViberSetup.exe"
+            self.__installed_path = os.path.join(os.path.expanduser("~"), "AppData/Local/Viber/Viber.exe")
+            self.__db_path = os.path.join(os.path.expanduser("~"), "AppData/Roaming/ViberPC")
+        elif platform == PLATFORM_MAC:
+            self.__installer_name = "Viber.dmg"
+            self.__installed_path = "/Applications/Viber.app/Contents/MacOS/Viber"
+            self.__db_path = os.path.join(os.path.expanduser("~"), "Library/Application Support")
+        elif platform == PLATFORM_LIN:
+            self.__installer_name = "viber_{version}_{type}_amd64.deb"
+            self.__installed_path = "/opt/viber/Viber"
+            self.__db_path = os.path.join(os.path.expanduser("~"), ".ViberPC")
+        else:
+            raise CustomError("Unknown platform specified: {}".format(platform))
+
+    @property
+    def platform(self):
+        return self.__platform
+
+    @property
+    def root_url(self):
+        return self.__root_url
+
+    @property
+    def version(self):
+        return self.__version
+
+    @property
+    def build_type(self):
+        return self.__build_type
+
+    @property
+    def store_path(self):
+        return self.__store_path
+
+    @property
+    def install(self):
+        return self.__install
+
+    @property
+    def download(self):
+        return self.__download
+
+    @property
+    def backup(self):
+        return self.__backup
+
+    @property
+    def installer_name(self):
+        return self.__installer_name
+
+    @property
+    def installed_path(self):
+        return self.__installed_path
+
+    @property
+    def db_path(self):
+        return self.__db_path
 
 
-def splitted_build(build):
-    try:
-        if len(build) > 0:
-            stripped_build = build.strip("./")
-            build_numbers = stripped_build.split(BUILD_VERSION_SPLITTER)
-            if len(build_numbers) == BUILD_VERSION_SECTIONS:
-                return tuple(int(c) for c in build_numbers)
-    except ValueError:
-        # not int values
-        pass
-    
-    return tuple(0 for number in range(BUILD_VERSION_SECTIONS))  # (0, 0, 0, 0) for example
+class Processor:
+    def __init__(self, configuration):
+        self.__conf = configuration
 
+    class BuildsParser(HTMLParser):
+        def __init__(self, url, platform):
+            super().__init__()
+            self.__last_build = ""
+            self.__url = url
+            self.__platform = platform
 
-class BuildsParser(HTMLParser):
-    def __init__(self, url, platform):
-        HTMLParser.__init__(self)
-        self.last_build = ""
-        self.url = url
-        self.platform = platform
+        def handle_starttag(self, tag, attrs):
+            if tag == 'a':
+                for attr in attrs:
+                    if attr[0] == 'href':
+                        self.__parse_build(attr[1])
+                        break
 
-    def handle_starttag(self, tag, attrs):
-        if tag == 'a':
-            for attr in attrs:
-                if attr[0] == 'href':
-                    self.parse_build(attr[1])
-                    break
-
-    def parse_build(self, build):
-        if splitted_build(build) > splitted_build(self.last_build):
+        @staticmethod
+        def __splitted_build(build):
             try:
-                response = urllib2.urlopen(urljoin(self.url, build, self.platform))
-                if response.getcode() == 200:  # page exists
-                    self.last_build = build
-            except urllib2.URLError as urlError:
-                pass  # page not exists
-        
-    def build(self):
-        return self.last_build
+                if len(build) > 0:
+                    stripped_build = build.strip("./")
+                    build_numbers = stripped_build.split(BUILD_VERSION_SPLITTER)
+                    if len(build_numbers) == BUILD_VERSION_SECTIONS:
+                        return tuple(int(c) for c in build_numbers)
+            except ValueError:
+                pass  # not int values
 
+            return tuple(0 for number in range(BUILD_VERSION_SECTIONS))  # (0, 0, 0, 0) for example
 
-def last_build(build_directory_url, platform):
-    try:
-        response = urllib2.urlopen(build_directory_url)
-        if response.getcode() != 200:
-            print("Invalid return code")
-            return ""
-        html_body = response.read()
-        parser = BuildsParser(build_directory_url, platform)
-        parser.feed(html_body)
-        return parser.build()
-        
-    except urllib2.URLError as urlError:
-        print(urlError)
-    
-    return ""
+        def __parse_build(self, build):
+            if self.__splitted_build(build) > self.__splitted_build(self.__last_build):
+                try:
+                    with urllib.request.urlopen(urljoin(self.__url, build, self.__platform)) as response:
+                        if response.getcode() == 200:  # page exists
+                            self.__last_build = build
+                except urllib.error.URLError:
+                    pass  # page not exists
 
+        def build(self):
+            return self.__last_build
 
-def download_build(url, store_path):
-    if len(url) <= 0:
-        print("Invalid url to download")
+    def __last_build(self, build_directory_url):
+        with urllib.request.urlopen(build_directory_url) as response:
+            if response.getcode() != 200:
+                raise CustomError("Invalid return code for url {}".format(build_directory_url))
+            html_body = response.read()
+            parser = self.BuildsParser(build_directory_url, self.__conf.platform)
+            parser.feed(html_body.decode("utf-8"))
+            return parser.build()
         return ""
 
-    if len(store_path) <= 0:
-        print("Invalid store path")
-        return ""
+    def __make_download_url(self, version_directory, build):
+        if self.__conf.platform == PLATFORM_LIN:
+            installer = self.__conf.installer_name.format(version=build.lstrip("./").rstrip("/"), type=self.__conf.build_type)
+            download_url = urljoin(version_directory, build, self.__conf.platform, installer)
+        else:
+            download_url = urljoin(version_directory, build, self.__conf.platform, self.__conf.build_type, self.__conf.installer_name)
+        return download_url
 
-    if not os.path.isdir(store_path):
-        print("{0} is not a valid directory".format(store_path))
-        store_path = "."
+    def __download_build(self, url):
+        with urllib.request.urlopen(url) as response:
+            if response.getcode() != 200:
+                raise CustomError("Invalid return code for url: ".format(url))
 
-    try:
-        response = urllib2.urlopen(url)
-        if response.getcode() != 200:
-            print("Invalid return code")
-            return ""
+            file_name = url.rpartition("/")[2]
+            if not file_name:
+                print("Invalid file name use {0}".format(file_name))
+                file_name = BUILD_DEFAULT_INSTALLER_NAME
 
-        file_name = url.rpartition("/")[2]
-        if len(file_name) <= 0:
-            file_name = BUILD_DEFAULT_INSTALLER_NAME
-            print("Invalid file name use {0}".format(file_name))
-
-        full_path = os.path.join(store_path, file_name)
-        with open(full_path, "wb") as output:
-            output.write(response.read())
-
+            full_path = os.path.join(self.__conf.store_path, file_name)
+            with open(full_path, "wb") as output:
+                output.write(response.read())
         print("saved: {0}".format(os.path.abspath(full_path)))
-    except urllib2.URLError as urlErr:
-            print(urlErr)
-            return ""
-    except IndexError as indexErr:
-            print(indexErr)
-            return ""
+        return full_path
 
-    return full_path
+    def __make_install_command(self, installer_path):
+        if self.__conf.platform == PLATFORM_LIN:
+            return ["sudo", "dpkg", "-i", installer_path]
+        elif self.__conf.platform == PLATFORM_MAC:
+            return ["open", installer_path]
+        else:
+            return installer_path
 
-
-def is_viber_process_running(platform):
-    if platform == PLATFORM_LIN or platform == PLATFORM_MAC:
-        try:
-            pids = subprocess.check_output(["pgrep", "Viber"])
-        except subprocess.CalledProcessError:
-            print("viber is not running")
-            return False
-
-        if len(pids) > 0:
-            return True
-    elif platform == PLATFORM_WIN:  # some crappy code for windows
-        process = subprocess.Popen('tasklist.exe /FO CSV /FI "IMAGENAME eq {0}"'.format("Viber.exe"),
-                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
-        out, err = process.communicate()
-        try:
-            return out.split("\n")[1].startswith('"Viber.exe"')
-        except:
-            return False
-
-    return False
-
-
-def stop_viber_process(platform, installed_path):
-    if not os.path.exists(installed_path):
-        return True
-
-    if is_viber_process_running(platform):
-        retCode = subprocess.call([installed_path, "ExitViber"])
-        if retCode != 0:
-            print("Invalid result code for viber: {0}".format(retCode))
-            return False
-
-        sys.stdout.write("stoping viber process...")
-        sys.stdout.flush()
-        while True:
-            time.sleep(1)
-            if is_viber_process_running(platform):
-                sys.stdout.write(".")
-                sys.stdout.flush()
-            else:
-                break
-
-    return True
-
-
-def backup_database(backup_folder, db_path):
-    zip_name = os.path.join(backup_folder, time.strftime("%Y_%m_%d_Viber"))
-    zip_name = shutil.make_archive(zip_name, "zip", db_path)
-    return zip_name
-
-
-def install_build(platform, settings, path, install_command, need_backup):
-    if len(path) <= 0:
-        print("Invalid installer path")
-        return False
-
-    if not stop_viber_process(platform, settings["installed_path"]):
-        print("Error was occurring during stoping viber process")
-        return False
-
-    if need_backup:
-        print("backup in progress...")
-        backup_folder = os.path.dirname(os.path.abspath(path))
-        zip_name = backup_database(backup_folder, settings["db_path"])
-        if len(zip_name) <= 0:
-            print("Error was occurring during backup database")
-            return False
-        print("backup: {0}".format(zip_name))
-
-    try:
-        ret_code = subprocess.call(install_command)
-    except OSError as osErr:
-        print(osErr)
-        return False
-
-    if ret_code != 0:
-        print("Invalid result code for installer: {0}".format(retCode))
-        return False
-
-    return True
-
-
-def process(args):
-    settings, platform = platform_settings(args.platform)
-    if len(settings) <= 0:
-        print("Invalid platform for download and install")
-        return False
-
-    version_directory = urljoin(args.root, args.version)
-    build = last_build(version_directory, platform)
-    if len(build) <= 0:
-        print("Cannot found {0} build on server".format(args.version))
-        return False
-
-    print("build: {0}".format(build))
-    if args.download:
-        installer = settings["installer_name"]
-        build_type = args.type
-        if len(build_type) <= 0:
-            build_type = "Release"
-
-        download_url = make_download_url(version_directory, build, platform, build_type, installer)
-        print("url: {0}".format(download_url))
-        if len(download_url) <= 0:
-            print("Invalid url")
-            return False
-
-        installer_path = download_build(download_url, args.spath)
-        if len(installer_path) <= 0:
-            print("Error was occurred during download process")
-
-        if args.install:
-            install_command = make_install_command(installer_path, platform)
-            if not install_build(platform, settings, installer_path, install_command, args.backup):
+    def __is_viber_process_running(self):
+        if self.__conf.platform == PLATFORM_LIN or self.__conf.platform == PLATFORM_MAC:
+            try:
+                pids = subprocess.check_output(["pgrep", "Viber"])
+            except subprocess.CalledProcessError:
+                print("viber is not running")
                 return False
 
-    return True
+            if len(pids) > 0:
+                return True
+        elif self.__conf.platform == PLATFORM_WIN:  # some crappy code for windows
+            process = subprocess.Popen('tasklist.exe /FO CSV /FI "IMAGENAME eq {0}"'.format("Viber.exe"),
+                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
+            out, err = process.communicate()
+            try:
+                return out.split("\n")[1].startswith('"Viber.exe"')
+            except:
+                return False
+
+        return False
+
+    def __stop_viber_process(self):
+        if not os.path.exists(self.__conf.installed_path):
+            return
+
+        if self.__is_viber_process_running():
+            ret_code = subprocess.call([self.__conf.installed_path, "ExitViber"])
+            if ret_code != 0:
+                raise CustomError("Invalid result code for viber: {0}".format(ret_code))
+
+            sys.stdout.write("stoping viber process...")
+            sys.stdout.flush()
+            while True:
+                time.sleep(1)
+                if self.__is_viber_process_running():
+                    sys.stdout.write(".")
+                    sys.stdout.flush()
+                else:
+                    break
+
+    def __backup_database(self, backup_folder):
+        zip_name = os.path.join(backup_folder, time.strftime("%Y_%m_%d_Viber"))
+        zip_name = shutil.make_archive(zip_name, "zip", self.__conf.db_path)
+        return zip_name
+
+    def __install_build(self, path, install_command):
+        self.__stop_viber_process()
+
+        if self.__conf.backup:
+            print("backup in progress...")
+            backup_folder = os.path.dirname(os.path.abspath(path))
+            zip_name = self.__backup_database(backup_folder)
+            if not zip_name:
+                raise CustomError("Error was occurring during backup database")
+
+            print("backup: {0}".format(zip_name))
+
+        ret_code = subprocess.call(install_command)
+        if ret_code != 0:
+            raise CustomError("Invalid result code for installer: {0}".format(ret_code))
+
+    def process(self):
+        version_directory = urljoin(self.__conf.root_url, self.__conf.version)
+
+        try:
+            build = self.__last_build(version_directory)
+            if not build:
+                raise CustomError("Unable to find build")
+        except Exception as err:
+            raise CustomError("Get build from server: {}".format(err))
+
+        print("build: {0}".format(build))
+
+        if self.__conf.download:
+            try:
+                download_url = self.__make_download_url(version_directory, build)
+                print("url: {0}".format(download_url))
+                if not download_url:
+                    raise CustomError("Download url is empty")
+
+                installer_path = self.__download_build(download_url)
+                if not installer_path:
+                    raise CustomError("Error was occurred during download process")
+            except Exception as err:
+                raise CustomError("Download build: {}".format(err))
+
+            if self.__conf.install:
+                try:
+                    install_command = self.__make_install_command(installer_path)
+                    self.__install_build(installer_path, install_command)
+                except Exception as err:
+                    raise CustomError("Install build: {}".format(err))
 
 
 def main():
@@ -314,22 +332,18 @@ def main():
     parser.add_argument("-b", "--backup", dest="backup", action="store_true", default=False, help="backup ViberPC folder")
     args = parser.parse_args()
 
-    if args.install:
-        current_platform = get_platform()
-        if args.platform != current_platform:
-            print("You trying to install build for {0} on {1}".format(args.platform, current_platform))
-            args.install = False
-        args.download = True
-
     start_time = time.time()
-    if process(args):
+    try:
+        p = Processor(Configuration(args))
+        p.process()
         print("success")
-    else:
-        print("failure")
+    except CustomError as err:
+        print("error: {}".format(err))
     end_time = time.time()
 
     print("script execution: {0} ms".format((end_time - start_time) * 1000))
     print("end...")
+
 
 if __name__ == "__main__":
     main()
