@@ -8,6 +8,7 @@ import os.path
 import sys
 import subprocess
 import shutil
+import re
 from html.parser import HTMLParser
 
 BUILD_DIRECTORY_URL = "http://builds.by.viberlab.com/builds/Viber/ViberPC/DevBuilds/"
@@ -146,11 +147,13 @@ class Processor:
         self.__conf = configuration
 
     class BuildsParser(HTMLParser):
-        def __init__(self, url, platform):
+        def __init__(self, url, is_master, make_url_fun):
             super().__init__()
             self.__last_build = ""
+            self.__fdd_revision = -1
             self.__url = url
-            self.__platform = platform
+            self.__is_master = is_master
+            self.__make_url_fun = make_url_fun
 
         def handle_starttag(self, tag, attrs):
             if tag == 'a':
@@ -160,43 +163,86 @@ class Processor:
                         break
 
         @staticmethod
-        def __splitted_build(build):
+        def __get_master_version(build):
+            match = re.search(r"(\d+)\.(\d+)\.(\d+)\.(\d+)", build.strip("./"))
+            if not match:
+                return tuple(0 for number in range(BUILD_VERSION_SECTIONS))  # (0, 0, 0, 0) for example
+            return int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
+
+        @staticmethod
+        def __get_fdd_version(build):
+            match = re.search(r"[\-\w\d]+\.(\d+)", build.strip("./"))
+            if not match:
+                return -1
+            return int(match.group(1))
+
+        @staticmethod
+        def __build_version(build):
             try:
-                if len(build) > 0:
-                    stripped_build = build.strip("./")
-                    build_numbers = stripped_build.split(BUILD_VERSION_SPLITTER)
-                    if len(build_numbers) == BUILD_VERSION_SECTIONS:
-                        return tuple(int(c) for c in build_numbers)
+                match = re.search(r"(\d+)\.(\d+)\.(\d+)\.(\d+)", build.strip("./"))
+                if match:
+                    return int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
+
+                match = re.search(r"[\-\w\d]+\.(\d+)", build.strip("./"))
+                if match:
+                    return int(match.group(1)), 0, 0, 0
             except ValueError:
                 pass  # not int values
 
             return tuple(0 for number in range(BUILD_VERSION_SECTIONS))  # (0, 0, 0, 0) for example
 
+        def __is_version_exists(self, version, revision):
+            if not version:
+                return False
+            try:
+                u = self.__make_url_fun(self.__url, version, revision)
+                with urllib.request.urlopen(u) as response:
+                    if response.getcode() == 200:  # page exists
+                        return True
+            except urllib.error.URLError as err:
+                pass  # page not exists
+            return False
+
         def __parse_build(self, build):
-            if self.__splitted_build(build) > self.__splitted_build(self.__last_build):
-                try:
-                    with urllib.request.urlopen(urljoin(self.__url, build, self.__platform)) as response:
-                        if response.getcode() == 200:  # page exists
+            if self.__is_master:
+                if self.__get_master_version(build) > self.__get_master_version(self.__last_build):
+                    if self.__is_version_exists(build, ""):
+                        self.__last_build = build
+            else:
+                fdd_version = self.__get_fdd_version(build)
+                if fdd_version > 0:
+                    if fdd_version > self.__fdd_revision:
+                        if self.__is_version_exists(build, str(fdd_version)):
                             self.__last_build = build
-                except urllib.error.URLError:
-                    pass  # page not exists
+                            self.__fdd_revision = fdd_version
 
         def build(self):
             return self.__last_build
+
+        def revision(self):
+            if self.__fdd_revision < 0:
+                return ""
+            return str(self.__fdd_revision)
 
     def __last_build(self, build_directory_url):
         with urllib.request.urlopen(build_directory_url) as response:
             if response.getcode() != 200:
                 raise CustomError("Invalid return code for url {}".format(build_directory_url))
             html_body = response.read()
-            parser = self.BuildsParser(build_directory_url, self.__conf.platform)
+            parser = self.BuildsParser(build_directory_url, self.__conf.version.startswith("master"), self.__make_download_url)
             parser.feed(html_body.decode("utf-8"))
-            return parser.build()
+            return parser.build(), parser.revision()
         return ""
 
-    def __make_download_url(self, version_directory, build):
+    def __make_download_url(self, version_directory, build, revision):
         if self.__conf.platform == PLATFORM_LIN:
-            installer = self.__conf.installer_name.format(version=build.lstrip("./").rstrip("/"), type=self.__conf.build_type)
+            installer_version = ""
+            if revision:
+                installer_version = revision
+            else:
+                installer_version = build.lstrip("./").rstrip("/")
+
+            installer = self.__conf.installer_name.format(version=installer_version, type=self.__conf.build_type)
             download_url = urljoin(version_directory, build, self.__conf.platform, installer)
         else:
             download_url = urljoin(version_directory, build, self.__conf.platform, self.__conf.build_type, self.__conf.installer_name)
@@ -291,7 +337,7 @@ class Processor:
         version_directory = urljoin(self.__conf.root_url, self.__conf.version)
 
         try:
-            build = self.__last_build(version_directory)
+            build, revision = self.__last_build(version_directory)
             if not build:
                 raise CustomError("Unable to find build")
         except Exception as err:
@@ -301,7 +347,7 @@ class Processor:
 
         if self.__conf.download:
             try:
-                download_url = self.__make_download_url(version_directory, build)
+                download_url = self.__make_download_url(version_directory, build, revision)
                 print("url: {0}".format(download_url))
                 if not download_url:
                     raise CustomError("Download url is empty")
