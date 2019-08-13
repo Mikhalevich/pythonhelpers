@@ -53,10 +53,11 @@ def urljoin(*args):
 class Configuration:
     def __init__(self, args):
         self.__platform = args.platform
-        self.__init_platform_specific_parameters(args.platform)
         self.__version = args.version
+        self.__fedora = args.fedora
+        self.__build_type = self.__parse_build_type(args.type, args.platform, args.version)
+        self.__init_platform_specific_parameters(args.platform)
         self.__store_path = args.spath
-        self.__build_type = args.type
         self.__root_url = args.root
         self.__backup = args.backup
         self.__install = args.install
@@ -79,6 +80,15 @@ class Configuration:
                       self.__build_type,
                       self.__root_url)
 
+    def __parse_build_type(self, type, platform, version):
+        if type:
+            return type
+        if version.startswith("master"):
+            return "Release"
+        if platform == PLATFORM_LIN:
+            return "Debug"
+        return "QA"
+
     def __init_platform_specific_parameters(self, platform):
         if not platform:
             raise CustomError("Platform is undefined")
@@ -91,7 +101,10 @@ class Configuration:
             self.__installed_path = "/Applications/Viber.app/Contents/MacOS/Viber"
             self.__db_path = os.path.join(os.path.expanduser("~"), "Library/Application Support")
         elif platform == PLATFORM_LIN:
-            self.__installer_name = "viber_{version}_{type}_amd64.deb"
+            if self.__fedora:
+                self.__installer_name = "viber-{version}-{type}-x86_64.rpm"
+            else:
+                self.__installer_name = "viber_{version}_{type}_amd64.deb"
             self.__installed_path = "/opt/viber/Viber"
             self.__db_path = os.path.join(os.path.expanduser("~"), ".ViberPC")
         else:
@@ -266,6 +279,8 @@ class Processor:
 
     def __make_install_command(self, installer_path):
         if self.__conf.platform == PLATFORM_LIN:
+            if self.__conf.__fedora:
+                return ["sudo", "dnf", "install", installer_path]
             return ["sudo", "dpkg", "-i", installer_path]
         elif self.__conf.platform == PLATFORM_MAC:
             return ["open", installer_path]
@@ -371,11 +386,12 @@ def main():
     parser.add_argument("-v", "--version", dest="version", required=True, help="build version to process")
     parser.add_argument("-d", "--download", dest="download", action="store_true", default=False, help="download flag for current version")
     parser.add_argument("-s", "--spath", dest="spath", required=False, default=BUILD_DOWNLOAD_FOLDER, help="store path for build")
-    parser.add_argument("-t", "--type", dest="type", required=False, default="Release", help="build type(Debug, Release)")
+    parser.add_argument("-t", "--type", dest="type", required=False, help="build type(Debug, Release, QA)")
     parser.add_argument("-p", "--platform", dest="platform", required=False, default=get_platform(), help="platform(Win, Mac, Lin)")
     parser.add_argument("-r", "--root", dest="root", required=False, default=BUILD_DIRECTORY_URL, help="root build directory url")
     parser.add_argument("-i", "--install", dest="install", action="store_true", default=False, help="trigger installation process")
     parser.add_argument("-b", "--backup", dest="backup", action="store_true", default=False, help="backup ViberPC folder")
+    parser.add_argument("-f", "--fedora", dest="fedora", action="store_true", default=False, help="stub for fedora linux")
     args = parser.parse_args()
 
     start_time = time.time()
