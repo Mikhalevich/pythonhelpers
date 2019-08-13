@@ -11,7 +11,7 @@ import shutil
 import re
 from html.parser import HTMLParser
 
-BUILD_DIRECTORY_URL = "http://builds.by.viberlab.com/builds/Viber/ViberPC/DevBuilds/"
+BUILD_DIRECTORY_URL = "http://buildsby.viberlab.com/builds/Viber/ViberPC/DevBuilds/"
 BUILD_VERSION_SPLITTER = "."
 BUILD_VERSION_SECTIONS = 4
 BUILD_DEFAULT_INSTALLER_NAME = "DefaultViberSetup"
