@@ -102,7 +102,7 @@ class Configuration:
             self.__db_path = os.path.join(os.path.expanduser("~"), "Library/Application Support")
         elif platform == PLATFORM_LIN:
             if self.__fedora:
-                self.__installer_name = "viber-{version}-{type}-x86_64.rpm"
+                self.__installer_name = "viber-{version}-{type}.x86_64.rpm"
             else:
                 self.__installer_name = "viber_{version}_{type}_amd64.deb"
             self.__installed_path = "/opt/viber/Viber"
@@ -117,6 +117,10 @@ class Configuration:
     @property
     def root_url(self):
         return self.__root_url
+
+    @property
+    def fedora(self):
+        return self.__fedora
 
     @property
     def version(self):
@@ -279,7 +283,7 @@ class Processor:
 
     def __make_install_command(self, installer_path):
         if self.__conf.platform == PLATFORM_LIN:
-            if self.__conf.__fedora:
+            if self.__conf.fedora:
                 return ["sudo", "dnf", "install", installer_path]
             return ["sudo", "dpkg", "-i", installer_path]
         elif self.__conf.platform == PLATFORM_MAC:
